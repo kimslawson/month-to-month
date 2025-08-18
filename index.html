@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Month to month calendar comparator</title>
+  <style>
+    :root{
+      --bg: #0f1115;
+      --panel: #151923;
+      --ink: #e6e8ee;
+      --muted: #9aa3b2;
+      --accent: #6ea8fe;
+      --ring: rgba(110,168,254,.4);
+      --grid: #23293a;
+      --today: #ffd166;
+    }
+    html, body { height: 100%; }
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1250px 800px at 80% -10%, #1a2030 0%, var(--bg) 60%);
+      color: var(--ink);
+      padding: 24px;
+      overflow: hidden; /* keep both months in view without scroll */
+    }
+    .app{ width:min(1100px, 100%); }
+
+    .controls{
+      display:grid; grid-template-columns: auto auto 1fr auto; align-items:center; gap:12px;
+      background: var(--panel); padding: 14px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.3);
+      position: sticky; top: 12px; z-index: 10; border: 1px solid #1e2433;
+    }
+    .title{
+      text-align:center; font-weight:700; letter-spacing:.4px; font-size: clamp(16px, 2.6vw, 22px);
+    }
+    .title small{ color: var(--muted); font-weight:500; margin-left:.35rem; }
+
+    .btn{
+      -webkit-tap-highlight-color: transparent;
+      display:inline-flex; align-items:center; justify-content:center; gap:10px;
+      border: 1px solid #242b3e; background: #182033; color: var(--ink);
+      padding: 10px 14px; border-radius: 12px; cursor:pointer; user-select:none;
+      transition: transform .06s ease, border-color .2s ease, background .2s ease, box-shadow .2s ease;
+      font-size: 14px;
+    }
+    .btn:focus-visible{ outline: none; box-shadow: 0 0 0 4px var(--ring); }
+    .btn:hover{ transform: translateY(-1px); border-color:#2b3550; }
+    .btn:active{ transform: translateY(0); }
+
+    .select{
+      appearance:none; -webkit-appearance:none; -moz-appearance:none;
+      background:#182033; color: var(--ink);
+      border:1px solid #242b3e; border-radius:12px;
+      padding:10px 12px; min-width:110px; font: inherit; font-size:14px;
+      cursor:pointer;
+    }
+    .select:focus-visible{ outline:none; box-shadow: 0 0 0 4px var(--ring); }
+    .select:hover{ border-color:#2b3550; }
+
+    .pair{ display:grid; gap:18px; margin-top:16px; grid-template-columns: 1fr; }
+    .pair.two{ grid-template-columns: 1fr 1fr; }
+
+    .calendar{
+      background: var(--panel); border-radius: 16px; padding: 16px; border: 1px solid #1e2433;
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
+      container-type: inline-size; /* enables container-query sizing of text */
+    }
+    .cal-head{ display:flex; align-items:baseline; justify-content:space-between; margin: 2px 2px 10px; }
+    .cal-head h2{ margin:0; font-size: clamp(16px, 2.4vw, 22px); font-weight: 700; letter-spacing:.3px; }
+    .cal-head .sub{ color: var(--muted); font-weight:500; font-size: 12px; }
+
+    .grid{ display:grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .cell, .dow{
+      border-radius: 12px; text-align:center; padding: 10px 0; border: 1px dashed transparent;
+    }
+    /* Day-of-week labels scale with the calendar width (container query units) */
+    .dow{ color: var(--muted); font-weight: 700; font-size: clamp(13px, 2.3cqw, 18px); letter-spacing:.4px; text-transform:uppercase; }
+
+    .day{ background: #121723; border: 1px solid var(--grid); position: relative; min-height: 42px;
+      display:flex; align-items:center; justify-content:center; font-weight:700;
+      aspect-ratio: 1 / 1; /* keeps squares when possible */
+      font-variant-numeric: tabular-nums;
+      /* Numbers scale with the calendar width; clamped to stay readable but not silly */
+      font-size: clamp(18px, 4.6cqw, 32px);
+    }
+    .other{ color: #5f6a81; opacity: .75; }
+    .today{
+      outline: 2px solid var(--today); color: #0c0f16; background: #2e3446; border-color: #39415a;
+      box-shadow: inset 0 0 0 9999px rgba(255, 209, 102, 0.15);
+    }
+    .weekend{ background: #141a28; }
+
+    .legend{ margin-top:10px; color: var(--muted); font-size: 12px; display:flex; gap:12px; align-items:center; }
+    .pill{ width: 14px; height:14px; border-radius: 6px; display:inline-block; border:1px solid var(--grid); background:#121723; }
+    .pill.weekend{ background:#141a28; }
+    .pill.today{ background:#2e3446; box-shadow: inset 0 0 0 9999px rgba(255, 209, 102, 0.15); border-color:#39415a; outline:1px solid var(--today); }
+
+    @media (min-width: 900px){
+      /* retain slightly larger padding on wide screens */
+      .calendar{ padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <div class="controls">
+      <button id="prevBtn" class="btn" aria-label="Previous month" title="Previous month">&#x2039; Prev</button>
+      <select id="yearSelect" class="select" aria-label="Reference year"></select>
+      <div class="title" id="title">Month</div>
+      <button id="nextBtn" class="btn" aria-label="Next month" title="Next month">Next &#x203A;</button>
+    </div>
+
+    <div class="pair">
+      <section class="calendar" aria-label="Top year calendar">
+        <div class="cal-head">
+          <h2 id="topLabel">Month YYYY</h2>
+          <div class="sub">Year 1</div>
+        </div>
+        <div class="grid" id="topGrid"></div>
+        <div class="legend" aria-hidden="true">
+          <span class="pill"></span>Day
+          <span class="pill weekend"></span>Weekend
+          <span class="pill today"></span>Today
+        </div>
+      </section>
+
+      <section class="calendar" aria-label="Next year calendar">
+        <div class="cal-head">
+          <h2 id="bottomLabel">Month YYYY</h2>
+          <div class="sub">Year 2</div>
+        </div>
+        <div class="grid" id="bottomGrid"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+      const monthNames = [
+        'January','February','March','April','May','June','July','August','September','October','November','December'
+      ];
+
+      const now = new Date();
+      // Compare the same month across two consecutive years.
+      let anchorYear = now.getFullYear() - 1; // top calendar year by default: last year
+      let month = now.getMonth(); // 0-11
+
+      const $ = sel => document.querySelector(sel);
+      const topGrid = $('#topGrid');
+      const bottomGrid = $('#bottomGrid');
+      const title = $('#title');
+      const yearSelect = $('#yearSelect');
+
+      function daysInMonth(year, m){
+        return new Date(year, m + 1, 0).getDate();
+      }
+
+      function populateYearOptions(center){
+        if(!yearSelect) return;
+        yearSelect.innerHTML = '';
+        const start = center - 25;
+        const end = center + 5;
+        for(let y = end; y >= start; y--){
+          const opt = document.createElement('option');
+          opt.value = String(y);
+          opt.textContent = y;
+          yearSelect.appendChild(opt);
+        }
+      }
+
+      function buildMonthGrid(container, year, m){
+        container.innerHTML = '';
+        // Header row: day names
+        dayNames.forEach(d => {
+          const el = document.createElement('div');
+          el.className = 'dow cell';
+          el.textContent = d;
+          container.appendChild(el);
+        });
+
+        const firstDow = new Date(year, m, 1).getDay(); // 0=Sun
+        const totalDays = daysInMonth(year, m);
+
+        // previous month trailing days to fill first row
+        const prevMonth = (m + 11) % 12;
+        const prevYear = prevMonth === 11 ? year - 1 : year;
+        const prevTotal = daysInMonth(prevYear, prevMonth);
+
+        // Create 6 weeks grid: 6 * 7 = 42 squares + 7 header = 49 children total
+        const leading = firstDow; // count of cells before day 1
+        const cellsNeeded = 42;
+
+        // Leading cells
+        for(let i = prevTotal - leading + 1; i <= prevTotal; i++){
+          const cell = document.createElement('div');
+          cell.className = 'day other cell' + ((container.children.length % 7 === 0 || container.children.length % 7 === 6) ? ' weekend' : '');
+          cell.textContent = i;
+          container.appendChild(cell);
+        }
+
+        // Current month days
+        for(let d=1; d<= totalDays; d++){
+          const cell = document.createElement('div');
+          const dow = (container.children.length) % 7; // after 7 day headers
+          const classes = ['day','cell'];
+          if(dow === 0 || dow === 6) classes.push('weekend');
+
+          const isToday = (year === now.getFullYear() && m === now.getMonth() && d === now.getDate());
+          if(isToday) classes.push('today');
+
+          cell.className = classes.join(' ');
+          cell.setAttribute('aria-label', `${year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`);
+          cell.textContent = d;
+          container.appendChild(cell);
+        }
+
+        // Trailing cells
+        let dayNum = 1;
+        while(container.children.length < (7 + cellsNeeded)){
+          const cell = document.createElement('div');
+          cell.className = 'day other cell' + ((container.children.length % 7 === 0 || container.children.length % 7 === 6) ? ' weekend' : '');
+          cell.textContent = dayNum++;
+          container.appendChild(cell);
+        }
+      }
+
+      function render(){
+        const monthName = monthNames[month];
+        title.innerHTML = `${monthName} <small>(same month, consecutive years)</small>`;
+        if(yearSelect) yearSelect.value = String(anchorYear);
+
+        // Top: anchor year
+        const topYear = anchorYear;
+        $('#topLabel').textContent = `${monthName} ${topYear}`;
+        buildMonthGrid(topGrid, topYear, month);
+
+        // Bottom: following year
+        const bottomYear = anchorYear + 1;
+        $('#bottomLabel').textContent = `${monthName} ${bottomYear}`;
+        buildMonthGrid(bottomGrid, bottomYear, month);
+      }
+
+      // Navigation
+      function shiftMonth(delta){
+        month = (month + delta + 12) % 12;
+        render();
+        fitLayout();
+      }
+
+      $('#prevBtn').addEventListener('click', () => shiftMonth(-1));
+      $('#nextBtn').addEventListener('click', () => shiftMonth(1));
+
+      // Year dropdown handler
+      if(yearSelect){
+        yearSelect.addEventListener('change', () => {
+          anchorYear = parseInt(yearSelect.value, 10);
+          render();
+          fitLayout();
+        });
+      }
+
+      // Keyboard shortcuts: ← → to move months
+      window.addEventListener('keydown', (e) => {
+        if(e.key === 'ArrowLeft'){ shiftMonth(-1); }
+        else if(e.key === 'ArrowRight'){ shiftMonth(1); }
+      });
+
+      // Fit the entire app into the viewport by scaling and choosing vertical (stack) or horizontal (two-up) layout.
+      function fitLayout(){
+        const appEl = document.getElementById('app');
+        const pair = document.querySelector('.pair');
+        // reset scale before measuring
+        appEl.style.transform = 'none';
+
+        const availW = window.innerWidth - 48; // account for body padding
+        const availH = window.innerHeight - 48;
+
+        const measure = (two) => {
+          pair.classList.toggle('two', !!two);
+          // force reflow to get correct size
+          void pair.offsetWidth;
+          const rect = appEl.getBoundingClientRect();
+          const scale = Math.min(1, availW / rect.width, availH / rect.height);
+          return { scale, rect };
+        };
+
+        // Try stacked (vertical) and two-up (horizontal) and pick the larger scale
+        const mStack = measure(false);
+        const mTwo = measure(true);
+
+        const useTwo = (mTwo.scale > mStack.scale) && (window.innerWidth > 900);
+        const chosen = useTwo ? mTwo : mStack;
+        pair.classList.toggle('two', useTwo);
+
+        appEl.style.transformOrigin = 'top center';
+        appEl.style.transform = `scale(${chosen.scale})`;
+      }
+
+      // Initialize
+      populateYearOptions(anchorYear);
+      render();
+      fitLayout();
+      window.addEventListener('resize', fitLayout);
+    })();
+  </script>
+</body>
+</html>

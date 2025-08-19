@@ -3,6 +3,8 @@ Compare the same month in subsequent years
 
 This simple all-in-one single-page webapp compares the same month in two subsequent years, for easy day-of-week reference when updating schedules and events.
 
+[Try it here!](https://kimslawson.github.io/month-to-month/)
+
 <hr width="40px">
 
 To quote [my long-dead livejournal](https://riffraff.livejournal.com/704.html):

@@ -227,7 +227,7 @@
 
       function render(){
         const monthName = monthNames[month];
-        title.innerHTML = `${monthName} <small>(same month, consecutive years)</small>`;
+        title.innerHTML = `${monthName} <small>(${anchorYear} vs. ${anchorYear + 1})</small>`;
         if(yearSelect) yearSelect.value = String(anchorYear);
 
         // Top: anchor year
